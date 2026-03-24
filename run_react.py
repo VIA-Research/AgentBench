@@ -19,6 +19,11 @@ def main(args):
 
     score_sum = 0
     pass_count = 0
+    # Load dataset
+    from src.utils import load_dataset, get_evaluation_function
+    print(f"Loading dataset for workload: {args.workload}")
+    dataset = load_dataset(args.workload)
+    evaluator = get_evaluation_function(args.workload)
     samples = min(len(dataset), args.samples) if args.samples else len(dataset)
     latencies = []
 
@@ -39,12 +44,6 @@ def main(args):
 
     # Load model
     model = ChatOpenAI(model=args.model, base_url=host_url, stream_usage=True, stop="\nObservation:", temperature=args.temperature)
-    
-    # Load dataset
-    from src.utils import load_dataset, get_evaluation_function
-    print(f"Loading dataset for workload: {args.workload}")
-    dataset = load_dataset(args.workload)
-    evaluator = get_evaluation_function(args.workload)
 
     system_prompt = None
     count = 0
@@ -239,3 +238,4 @@ def run_agent(args, agent, messages, label=None, evaluator=None, query=None):
     else:
         print(Fore.RED + "FAIL" + Style.RESET_ALL)
     return {"output": output, "ispass": ispass, "score": score}
+
