@@ -1,5 +1,5 @@
 # VIA-AgentBench
-This repository contains the AI agent implementations and benchmarking utilities used in our paper: Kim et al., "The Cost of Dynamic Reasoning: Demystifying AI Agents and Test-Time Scaling from an AI Infrastructure Perspective," HPCA-2026 [[arXiv](https://arxiv.org/abs/2506.04301)].
+This repository contains the AI agent implementations and benchmarking utilities used in our paper: Kim et al., "The Cost of Dynamic Reasoning: Demystifying AI Agents and Test-Time Scaling from an AI Infrastructure Perspective," HPCA-2026 [[Paper](https://ieeexplore.ieee.org/abstract/document/11408569)].
 
 ## Setting
 ### Prerequisites
@@ -118,9 +118,9 @@ Each agent has the following parameter groups:
 
 ### Run Agent
 ```bash
-python agent_bench.py --agent [agent name] --config [config file path]
+python agent_bench.py --agent [agent name] --config [config file path] [--print-log]
 # For example:
-# python agent_bench.py --agent my_react_agent --config config.yaml
+# python agent_bench.py --agent my_react_agent --config config.yaml --print-log
 ```
 
 ### 🛠 Agent Availability
