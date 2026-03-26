@@ -32,39 +32,9 @@ agents:
     max_replan: 20                          # Max number of replanning steps
     max_chat_history: 10                    # Max number of chat history to keep
 
-  my_lats_hotpotqa_agent:
+  my_lats_agent:
     type: "lats"
     workload: "hotpotqa"                    # choices: ["hotpotqa", "webshop", "humaneval", "math"]
-    fewshot: 1
-    iteration_limit: 20                     # LATS search iterations
-    max_depth: 7                            # LATS search depth limit
-    n_generate_sample: 5                    # branch factor at expansion
-    n_evaluate_sample: 1                    # value evaluation samples
-    sampling_temperature: 1.0               # used only for child-node generation
-
-  my_lats_webshop_agent:
-    type: "lats"
-    workload: "webshop"                     # choices: ["hotpotqa", "webshop", "humaneval", "math"]
-    fewshot: 1
-    iteration_limit: 20                     # LATS search iterations
-    max_depth: 15                           # LATS search depth limit
-    n_generate_sample: 5                    # branch factor at expansion
-    n_evaluate_sample: 1                    # value evaluation samples
-    sampling_temperature: 1.0               # used only for child-node generation
-
-  my_lats_humaneval_agent:
-    type: "lats"
-    workload: "humaneval"                   # choices: ["hotpotqa", "webshop", "humaneval", "math"]
-    fewshot: 1
-    iteration_limit: 20                     # LATS search iterations
-    max_depth: 8                            # LATS search depth limit
-    n_generate_sample: 5                    # branch factor at expansion
-    n_evaluate_sample: 3                    # number of internal tests
-    sampling_temperature: 1.0               # kept for interface consistency
-
-  my_lats_math_agent:
-    type: "lats"
-    workload: "math"                        # choices: ["hotpotqa", "webshop", "humaneval", "math"]
     fewshot: 1
     iteration_limit: 20                     # LATS search iterations
     max_depth: 7                            # LATS search depth limit
