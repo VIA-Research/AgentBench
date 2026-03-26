@@ -18,6 +18,16 @@ def main(args):
     else:
         host_url = None
 
+    score_sum = 0
+    pass_count = 0
+    # Load dataset
+    from src.utils import load_dataset, get_evaluation_function
+    print(f"Loading dataset for workload: {args.workload}")
+    dataset = load_dataset(args.workload)
+    evaluator = get_evaluation_function(args.workload)
+    samples = min(len(dataset), args.samples) if args.samples else len(dataset)
+    latencies = []
+
     def pretty_output(i):
         print(Fore.YELLOW+"=" * 30)
         print(f"Sample {i + 1}/{samples}")
@@ -35,17 +45,6 @@ def main(args):
 
     # Load model
     model = ChatOpenAI(model=args.model, base_url=host_url, stream_usage=True, stop="\nObservation:", temperature=args.temperature)
-    
-    # Load dataset
-    from src.utils import load_dataset, get_evaluation_function
-    print(f"Loading dataset for workload: {args.workload}")
-    dataset = load_dataset(args.workload, shuffle=getattr(args, "shuffle", False))
-    evaluator = get_evaluation_function(args.workload)
-
-    score_sum = 0
-    pass_count = 0
-    samples = min(len(dataset), args.samples) if args.samples else len(dataset)
-    latencies = []
 
     system_prompt = None
     count = 0
@@ -251,3 +250,4 @@ def run_agent(args, agent, messages, label=None, evaluator=None, query=None):
     else:
         print(Fore.RED + "FAIL" + Style.RESET_ALL)
     return {"output": output, "ispass": ispass, "score": score}
+
