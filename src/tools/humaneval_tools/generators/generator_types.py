@@ -15,11 +15,13 @@ class Generator:
         func_sig: str,
         model: ModelBase,
         strategy: str,
-        prev_func_impl: Optional[str] = None,
+        prev_func_impl: Optional[Union[str, List[str]]] = None,
         feedback: Optional[str] = None,
         self_reflection: Optional[str] = None,
         num_comps: int = 1,
         temperature: float = 0.0,
+        acc_feedback: Optional[List[str]] = None,
+        acc_reflection: Optional[List[str]] = None,
     ) -> Union[str, List[str]]:
         ...
 

@@ -17,7 +17,7 @@ def get_model(
         model=model_name,
         temperature=temperature,
         max_retries=1,
-        max_tokens=None,
+        max_tokens=max_tokens,
     )
 
     return llm

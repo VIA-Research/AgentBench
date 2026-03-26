@@ -1,6 +1,11 @@
 from .model import ModelBase, message_to_str
 from .generator_types import Generator
-from .generator_utils import generic_generate_func_impl, generic_generate_internal_tests, generic_generate_self_reflection
+from .generator_utils import (
+    generic_generate_func_impl,
+    generic_generate_internal_tests,
+    generic_generate_self_reflection,
+    generate_with_accumulated_context,
+)
 
 from typing import Optional, List, Union
 import ast
@@ -272,12 +277,42 @@ class PyGenerator(Generator):
         func_sig: str,
         model: ModelBase,
         strategy: str,
-        prev_func_impl: Optional[str] = None,
+        prev_func_impl: Optional[Union[str, List[str]]] = None,
         feedback: Optional[str] = None,
         self_reflection: Optional[str] = None,
         num_comps: int = 1,
         temperature: float = 0.0,
+        acc_feedback: Optional[List[str]] = None,
+        acc_reflection: Optional[List[str]] = None,
     ) -> Union[str, List[str]]:
+        if strategy == "mcts":
+            prev_impl_list: List[str]
+            if prev_func_impl is None:
+                prev_impl_list = []
+            elif isinstance(prev_func_impl, list):
+                prev_impl_list = [str(x) for x in prev_func_impl]
+            else:
+                prev_impl_list = [str(prev_func_impl)]
+
+            return generate_with_accumulated_context(
+                func_sig=func_sig,
+                model=model,
+                strategy="reflexion",
+                prev_func_impl=prev_impl_list,
+                accumulated_feedback=acc_feedback or [],
+                accumulated_reflection=acc_reflection or [],
+                num_comps=num_comps,
+                temperature=temperature,
+                reflexion_chat_instruction=PY_REFLEXION_CHAT_INSTRUCTION,
+                reflexion_few_shot=PY_REFLEXION_FEW_SHOT_ADD,
+                simple_chat_instruction=PY_SIMPLE_CHAT_INSTRUCTION,
+                reflexion_completion_instruction=PY_REFLEXION_COMPLETION_INSTRUCTION,
+                simple_completion_instruction=PY_SIMPLE_COMPLETION_INSTRUCTION,
+                code_block_instruction=USE_PYTHON_CODEBLOCK_INSTRUCTION,
+                parse_code_block=lambda x: parse_code_block(x, "python"),
+                add_code_block=lambda x: add_code_block(x, "python"),
+            )
+
         return generic_generate_func_impl(
             func_sig=func_sig,
             model=model,

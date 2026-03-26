@@ -1,0 +1,2 @@
+"""HotpotQA-specific LATS components."""
+

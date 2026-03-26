@@ -1,4 +1,7 @@
 import math
+import os
+import xml.etree.ElementTree as ET
+import requests
 import numexpr
 from langchain_community.utilities.wolfram_alpha import WolframAlphaAPIWrapper
 from langchain_core.tools import BaseTool
@@ -44,61 +47,132 @@ class CalculatorTool(BaseTool):
 class WolframAlpha(WolframAlphaAPIWrapper):
     """Subclass of WolframAlphaAPIWrapper with modified run method."""
 
+    _preferred_titles = {"Result", "Results", "Exact result", "Complex roots"}
+
+    def _extract_answers_from_result(self, res: object) -> list[str]:
+        try:
+            pods = res["pod"]  # type: ignore[index]
+        except Exception:
+            return []
+
+        if isinstance(pods, dict):
+            pods = [pods]
+        if not isinstance(pods, list):
+            return []
+
+        # Prefer explicit "result-like" pods.
+        for pod in pods:
+            if not isinstance(pod, dict):
+                continue
+            if pod.get("@title") not in self._preferred_titles:
+                continue
+            subpod = pod.get("subpod")
+            answers: list[str] = []
+            if isinstance(subpod, dict):
+                text = str(subpod.get("plaintext", "") or "").strip()
+                if text:
+                    answers.append(text)
+            elif isinstance(subpod, list):
+                for sp in subpod:
+                    if not isinstance(sp, dict):
+                        continue
+                    text = str(sp.get("plaintext", "") or "").strip()
+                    if text:
+                        answers.append(text)
+            if answers:
+                return answers
+
+        # Fallback to first pod with plaintext.
+        for pod in pods:
+            if not isinstance(pod, dict):
+                continue
+            subpod = pod.get("subpod")
+            answers: list[str] = []
+            if isinstance(subpod, dict):
+                text = str(subpod.get("plaintext", "") or "").strip()
+                if text:
+                    answers.append(text)
+            elif isinstance(subpod, list):
+                for sp in subpod:
+                    if not isinstance(sp, dict):
+                        continue
+                    text = str(sp.get("plaintext", "") or "").strip()
+                    if text:
+                        answers.append(text)
+            if answers:
+                return answers
+        return []
+
+    def _direct_query(self, query: str) -> str:
+        appid = (self.wolfram_alpha_appid or os.getenv("WOLFRAM_ALPHA_APPID", "")).strip()
+        if not appid:
+            return "Wolfram Alpha APPID is not configured."
+
+        try:
+            resp = requests.get(
+                "https://api.wolframalpha.com/v2/query",
+                params={"appid": appid, "input": query, "format": "plaintext"},
+                timeout=20,
+            )
+        except Exception as e:
+            return f"Wolfram Alpha request failed: {type(e).__name__}: {e}"
+
+        if resp.status_code != 200:
+            snippet = (resp.text or "").strip().replace("\n", " ")
+            if len(snippet) > 200:
+                snippet = snippet[:200] + "..."
+            return (
+                f"Wolfram Alpha HTTP error: {resp.status_code}. "
+                f"Response: {snippet if snippet else '(empty)'}"
+            )
+
+        body = resp.text or ""
+        try:
+            root = ET.fromstring(body)
+        except ET.ParseError:
+            snippet = body.strip()
+            return snippet[:300] if snippet else "Wolfram Alpha returned an unreadable response."
+
+        answers: list[str] = []
+        for pod in root.findall("pod"):
+            title = pod.attrib.get("title", "")
+            if title not in self._preferred_titles:
+                continue
+            for subpod in pod.findall("subpod"):
+                text = (subpod.findtext("plaintext") or "").strip()
+                if text:
+                    answers.append(text)
+            if answers:
+                return "\n".join(answers)
+
+        for pod in root.findall("pod"):
+            for subpod in pod.findall("subpod"):
+                text = (subpod.findtext("plaintext") or "").strip()
+                if text:
+                    answers.append(text)
+            if answers:
+                return "\n".join(answers)
+
+        err_msg = root.findtext("./error/msg")
+        if err_msg:
+            return f"Wolfram Alpha error: {err_msg}"
+        return "No good Wolfram Alpha Result was found"
+
     def run(self, query: str) -> str:
         """Run query through WolframAlpha and parse all results."""
-        res = self.wolfram_client.query(query)
-
         try:
-            results_pod = next(
-                    pod for pod in res['pod'] if pod["@title"] in ["Result", "Results", "Exact result", "Complex roots"]
-                )
-
-            if isinstance(results_pod["subpod"], dict):
-                answers = [results_pod["subpod"]["plaintext"]]
-            elif isinstance(results_pod["subpod"], list):
-                answers = [
-                    subpod["plaintext"] for subpod in results_pod["subpod"] if subpod["plaintext"]
-                ]
-            else:
-                raise TypeError("Not supported type")
-
-        except (StopIteration, KeyError):
-            return "Wolfram Alpha wasn't able to answer it"
-
-        if not answers:
-            return "No good Wolfram Alpha Result was found"
-        else:
-            # Join answers into a single string
-            answers_str = "\n".join(answers)
-            return answers_str
+            res = self.wolfram_client.query(query)
+            answers = self._extract_answers_from_result(res)
+            if answers:
+                return "\n".join(answers)
+        except Exception:
+            # Some environments/libraries raise AssertionError on non-exact content-type.
+            pass
+        return self._direct_query(query)
 
     async def arun(self, query: str) -> str:
-        """Run query through WolframAlpha and parse all results."""
-        res = await self.wolfram_client.aquery(query)
-        print(f"res: {res}")  # Debug output
-
-        try:
-            results_pod = next(
-                    pod for pod in res['pod'] if pod["@title"] in ["Result", "Results", "Exact result", "Complex roots"]
-                )
-
-            if isinstance(results_pod["subpod"], dict):
-                answers = [results_pod["subpod"]["plaintext"]]
-            elif isinstance(results_pod["subpod"], list):
-                answers = [
-                    subpod["plaintext"] for subpod in results_pod["subpod"] if subpod["plaintext"]
-                ]
-            else:
-                raise TypeError("Not supported type")
-
-        except (StopIteration, KeyError):
-            return "Wolfram Alpha wasn't able to answer it"
-
-        if not answers:
-            return "No good Wolfram Alpha Result was found"
-
-        answers_str = "\n".join(answers)
-        return answers_str
+        # Keep async API while using the robust sync path.
+        return self.run(query)
 
 class WolframAlphaTool(BaseTool):
     name: str = "WolframAlpha"
@@ -116,14 +190,19 @@ class WolframAlphaTool(BaseTool):
     Use this tool exclusively for advanced mathematical problems, including algebra, calculus, and equation solving.
     If Calculator returns error, try to use WolframAlpha tool to solve complex math question.
     """
-    api_wrapper: WolframAlpha = WolframAlpha()
+    api_wrapper: Optional[WolframAlpha] = None
+
+    def _get_api_wrapper(self) -> WolframAlpha:
+        if self.api_wrapper is None:
+            self.api_wrapper = WolframAlpha()
+        return self.api_wrapper
 
     def _run(self, query: str) -> str:
         """Run query through WolframAlpha and parse all results."""
-        return self.api_wrapper.run(query)
+        return self._get_api_wrapper().run(query)
 
     async def _arun(self, query: str) -> str:
-        return await self.api_wrapper.arun(query)
+        return await self._get_api_wrapper().arun(query)
     
 class FinishTool_schema(BaseModel):
     thought: Optional[str] = Field(

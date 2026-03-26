@@ -74,18 +74,40 @@ agents:
 ```
 Each agent has the following parameter groups:
 1. **Agent Type**
-    - **type**: Specifies the agent architecture. Supported values: `react`, `reflexion`.
+    - **type**: Specifies the agent architecture. Supported values: `react`, `reflexion`, `lats`, `llmcompiler`.
 2. **Workload**
-    - **workload**: Determines which benchmark or environment the agent will run. Valid workloads: `hotpotqa`, `webshop`, `math`, `humaneval`
+    - **workload**: Determines which benchmark or environment the agent will run. Valid workloads depend on agent type.
+    - ReAct / Reflexion: `hotpotqa`, `webshop`, `math`, `humaneval`
+    - LATS: `hotpotqa`, `webshop`
+    - LLMCompiler: `hotpotqa`, `webshop`
 3. **Prompt**
     - **fewshot**: Number of few shot examples used in the initial prompt.
     - **context_limit** (Reflexion only): Maximum number of words for stored conversation history.
 4. **Iteration Limits**
     - **iteration_limit**: Maximum number of ReAct steps (Thought, Action, Observation). In Reflexion, this limit applies to the iterations between reflection steps.
     - **reflection_limit** (Reflexion only): Maximum number of reflection cycles.
-5. **Evaluation**
+    - **max_depth** (LATS only): Maximum search depth for tree expansion/simulation.
+5. **LATS Search Config**
+    - **prompt_sample**: Prompt style used for action generation (`cot` or `standard`).
+    - **n_generate_sample**: Number of sampled actions generated per expansion.
+    - **n_evaluate_sample**: Number of LLM samples used for value evaluation.
+6. **Evaluation**
     - **samples**: Number of tasks to evaluate.
     - **shuffle**: Enable or disable shuffling of evaluation samples.
+
+#### LATS Example
+```yaml
+agents:
+  my_lats_hotpot_agent:
+    type: "lats"
+    workload: "hotpotqa"
+    fewshot: 1
+    iteration_limit: 20
+    max_depth: 7
+    prompt_sample: "cot"
+    n_generate_sample: 5
+    n_evaluate_sample: 1
+```
 
 ### Run Agent
 ```bash
@@ -97,7 +119,7 @@ python agent_bench.py --agent [agent name] --config [config file path]
 ### 🛠 Agent Availability
 - ✅ **ReAct** (Ready)
 - ✅ **Reflexion** (Ready)
-- 🚧 **LATS** (Working on...)
+- ✅ **LATS** (Ready)
 - 🚧 **LLMCompiler** (Working on...)
 
 ## Citation

@@ -104,12 +104,13 @@ async def run_agent(args, agent, question, label=None, evaluator=None):
 
 
 async def main(args):
+    print_log = bool(getattr(args, "print_log", False))
     if args.workload not in ["hotpotqa", "webshop"]:
         raise NotImplementedError(f"Not implmented error: {args.workload}")
     
     # Load dataset
     print(f"Loading dataset for workload: {args.workload}")
-    dataset = load_dataset(args.workload)
+    dataset = load_dataset(args.workload, shuffle=getattr(args, "shuffle", False))
     evaluator = get_evaluation_function(args.workload)
     samples = min(len(dataset), args.samples) if args.samples else len(dataset)
 
@@ -168,6 +169,7 @@ async def main(args):
         max_replans=args.max_replan,
         end_condition=end_condition_,
         max_chat_history=args.max_chat_history,
+        print_log=print_log,
     )
     
     all_results = {}

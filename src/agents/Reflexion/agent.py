@@ -5,11 +5,12 @@ from langsmith import traceable
 import re
 from colorama import Fore, Style
 
-def parse_action(input_str):
+def parse_action(input_str, print_log: bool = False):
     pattern = re.compile(r"Action\s+(\d+):\s*(\w+)\s*([\[\(])", re.MULTILINE)
     match = pattern.search(input_str)
     if not match:
-        print("Parse failed!!")
+        if print_log:
+            print("Parse failed!!")
         return None, None
 
     action_type = match.group(2)
@@ -56,6 +57,7 @@ class ReflexionAgent:
                  context_limit: int = 2000,
                  max_steps: int = 6,
                  evaluator = lambda ans, key: ans == key,
+                 print_log: bool = False,
                  ) -> None:
         
         self.actor_llm = actor_llm
@@ -70,15 +72,20 @@ class ReflexionAgent:
         self.last_scratchpad = []
 
         self.tools = tools 
+        self.workload = workload
         self.tools_dict = {}
         self.set_tools()
         self.max_steps = max_steps
         self.context_limit = context_limit
-        self.workload = workload
         self.evaluator = evaluator
+        self.print_log = bool(print_log)
                 
         self.step_n = 0
         self.finished = False
+
+    def _log(self, text: str) -> None:
+        if self.print_log:
+            print(text)
 
     def __reset_agent(self):
         self.scratchpad_list = []
@@ -133,8 +140,15 @@ class ReflexionAgent:
         return
     
     def set_tools(self) -> None:
+        self.tools_dict = {}
         for tool in self.tools:
             self.tools_dict[tool.name] = tool
+            self.tools_dict[tool.name.lower()] = tool
+            if self.workload == "math":
+                if tool.name == "WolframAlpha":
+                    self.tools_dict["search"] = tool
+                if tool.name == "simplecalc":
+                    self.tools_dict["calculator"] = tool
 
     @traceable
     def truncate_scratchpad(self):
@@ -181,37 +195,41 @@ class ReflexionAgent:
         
         try:
             thought, action = parse_thought_action(thought_and_action)
-            action_type, argument = parse_action(action)
+            action_type, argument = parse_action(action, print_log=self.print_log)
             self.scratchpad_list.append(f"{thought}\n{action}")
-            print(f"{thought}\n{action}")
+            self._log(f"{thought}\n{action}")
         except:
             self.scratchpad_list.append(f"{thought_and_action}\nWrong Action format. Follow the instruction about 'Action' carefully.")
             return "Agent result is not successfull."
         observation = f'Observation {self.step_n}: '
         try:
-            tool_output = self.run_tool(self.tools_dict[action_type], argument)
+            tool_key = action_type if action_type in self.tools_dict else action_type.lower()
+            tool_output = self.run_tool(self.tools_dict[tool_key], argument)
             if type(tool_output) is tuple:
                 (tool_output, artifact) = tool_output
             else:
                 artifact = None
         except Exception as e:
-            print(f"Error: {e}")
-            print(f"Tool {action_type} failed.")
-            if action_type == "search":
-                observation += f"search failed. Please try again."
+            self._log(f"Error: {e}")
+            self._log(f"Tool {action_type} failed.")
+            lowered_action = (action_type or "").lower()
+            if lowered_action in {"search", "wolframalpha"}:
+                observation += "WolframAlpha failed. Please try again."
             elif action_type == "click":
                 observation += "You clicked an invalid object"
-            elif action_type == "lookup":
+            elif lowered_action == "lookup":
                 observation += f"The last page searched was not found, so you cannot lookup a keyword in it. Please try one of the similar pages given."
-            print(observation)
-            print(Fore.CYAN+Style.BRIGHT+f"{'-'*30}"+Style.RESET_ALL)
+            elif lowered_action in {"simplecalc", "calculator"}:
+                observation += "simplecalc failed. Please try again."
+            self._log(observation)
+            self._log(Fore.CYAN+Style.BRIGHT+f"{'-'*30}"+Style.RESET_ALL)
             self.scratchpad_list.append(observation)
             return "Agent result is not successfull."
         if action_type != "finish":
             if artifact and "done" in artifact and artifact["done"]: # For Webshop click[Buy Now]
                 observation += tool_output
-                print(observation)
-                print(Fore.CYAN+Style.BRIGHT+f"{'-'*30}"+Style.RESET_ALL)
+                self._log(observation)
+                self._log(Fore.CYAN+Style.BRIGHT+f"{'-'*30}"+Style.RESET_ALL)
                 self.scratchpad_list.append(observation)
                 self.finished = True
                 return observation
@@ -226,8 +244,8 @@ class ReflexionAgent:
             answer = "Agent result is not successfull."
             
         self.scratchpad_list.append(observation)
-        print(observation)
-        print(Fore.CYAN+Style.BRIGHT+f"{'-'*30}"+Style.RESET_ALL)
+        self._log(observation)
+        self._log(Fore.CYAN+Style.BRIGHT+f"{'-'*30}"+Style.RESET_ALL)
         return answer
 
     def is_finished(self) -> bool:
@@ -249,5 +267,5 @@ class ReflexionAgent:
         else:
             reflection = reflection
         self.reflections.append(reflection)
-        print("\n".join(self.reflections))
-        print(Fore.CYAN+Style.BRIGHT+f"{'-'*30}"+Style.RESET_ALL)
+        self._log("\n".join(self.reflections))
+        self._log(Fore.CYAN+Style.BRIGHT+f"{'-'*30}"+Style.RESET_ALL)

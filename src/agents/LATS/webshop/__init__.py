@@ -1,0 +1,2 @@
+"""WebShop-specific LATS components."""
+

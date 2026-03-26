@@ -29,7 +29,7 @@ def messages_to_str(messages: List[Message]) -> str:
 def gpt_completion(
         model: str,
         prompt: str,
-        max_tokens: int = 1024,
+        max_tokens: Optional[int] = None,
         stop_strs: Optional[List[str]] = None,
         temperature: float = 0.0,
         num_comps=1,
@@ -55,7 +55,7 @@ def gpt_completion(
 def gpt_chat(
     model: str,
     messages: List[Message],
-    max_tokens: int = 1024,
+    max_tokens: Optional[int] = None,
     temperature: float = 0.0,
     num_comps=1,
 ) -> Union[List[str], str]:
@@ -83,10 +83,10 @@ class ModelBase():
     def __repr__(self) -> str:
         return f'{self.name}'
 
-    def generate_chat(self, messages: List[Message], max_tokens: int = 1024, temperature: float = 0.2, num_comps: int = 1) -> Union[List[str], str]:
+    def generate_chat(self, messages: List[Message], max_tokens: Optional[int] = None, temperature: float = 0.2, num_comps: int = 1) -> Union[List[str], str]:
         raise NotImplementedError
 
-    def generate(self, prompt: str, max_tokens: int = 1024, stop_strs: Optional[List[str]] = None, temperature: float = 0.0, num_comps=1) -> Union[List[str], str]:
+    def generate(self, prompt: str, max_tokens: Optional[int] = None, stop_strs: Optional[List[str]] = None, temperature: float = 0.0, num_comps=1) -> Union[List[str], str]:
         raise NotImplementedError
 
 
@@ -95,7 +95,7 @@ class GPTChat(ModelBase):
         self.name = model_name
         self.is_chat = True
 
-    def generate_chat(self, messages: List[Message], max_tokens: int = 1024, temperature: float = 0.2, num_comps: int = 1) -> Union[List[str], str]:
+    def generate_chat(self, messages: List[Message], max_tokens: Optional[int] = None, temperature: float = 0.2, num_comps: int = 1) -> Union[List[str], str]:
         return gpt_chat(self.name, messages, max_tokens, temperature, num_comps)
 
 
@@ -113,7 +113,7 @@ class GPTDavinci(ModelBase):
     def __init__(self, model_name: str):
         self.name = model_name
 
-    def generate(self, prompt: str, max_tokens: int = 1024, stop_strs: Optional[List[str]] = None, temperature: float = 0, num_comps=1) -> Union[List[str], str]:
+    def generate(self, prompt: str, max_tokens: Optional[int] = None, stop_strs: Optional[List[str]] = None, temperature: float = 0, num_comps=1) -> Union[List[str], str]:
         return gpt_completion(self.name, prompt, max_tokens, stop_strs, temperature, num_comps)
 
 
@@ -129,7 +129,7 @@ class HFModelBase(ModelBase):
         self.eos_token_id = eos_token_id if eos_token_id is not None else self.tokenizer.eos_token_id
         self.is_chat = True
 
-    def generate_chat(self, messages: List[Message], max_tokens: int = 1024, temperature: float = 0.2, num_comps: int = 1) -> Union[List[str], str]:
+    def generate_chat(self, messages: List[Message], max_tokens: Optional[int] = None, temperature: float = 0.2, num_comps: int = 1) -> Union[List[str], str]:
         # NOTE: HF does not like temp of 0.0.
         if temperature < 0.0001:
             temperature = 0.0001

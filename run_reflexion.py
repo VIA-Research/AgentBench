@@ -17,7 +17,7 @@ def get_tools(args):
         tools = [WikipediaTool(name="search"), LookupTool(name="lookup"), FinishTool(name="finish")]
     elif args.workload == "math":
         from src.tools.math_tools.math_tools import CalculatorTool, WolframAlphaTool, FinishTool
-        tools = [WolframAlphaTool(name="search"), CalculatorTool(name="simplecalc"), FinishTool(name="finish")]
+        tools = [WolframAlphaTool(name="WolframAlpha"), CalculatorTool(name="simplecalc"), FinishTool(name="finish")]
     elif args.workload == "webshop":
         from src.tools.webshop_tools.webshop_tools import SearchTool, ClickTool, FinishTool, set_webshop_url
         set_webshop_url(args.webshop_url)
@@ -30,6 +30,7 @@ def get_tools(args):
 
 def main(args):
     ## Setting
+    print_log = bool(getattr(args, "print_log", False))
     num_success = 0
     total_score = 0.0
     context_limit = args.context_limit 
@@ -78,6 +79,7 @@ def main(args):
         workload=args.workload,
         max_steps=args.iteration_limit,
         evaluator=evaluator,
+        print_log=print_log,
     )
     if args.workload == "hotpotqa":
         for i in range(iteration):
@@ -93,7 +95,15 @@ def main(args):
                              "Iteration_limit:"+str(args.iteration_limit), 
                              "Reflection_limit:"+str(args.reflection_limit),
                              "Index:"+str(i)]):
-                _, ispass = run_agent(agent, args.workload, query=query, max_reflextions=args.reflection_limit, reset_func=None, label=answer) # query is just for tracing.
+                _, ispass = run_agent(
+                    agent,
+                    args.workload,
+                    query=query,
+                    max_reflextions=args.reflection_limit,
+                    reset_func=None,
+                    label=answer,
+                    print_log=print_log,
+                ) # query is just for tracing.
             end = time.time()
             latencies.append(end - start)
             print(f"Latency: {round(end - start, 2)} sec\n")
@@ -111,7 +121,15 @@ def main(args):
             agent.set_qa(problem)
             start = time.time()
             with trace("Reflexion_trace", tags=[args.workload, args.model, "Iteration_limit:"+str(args.iteration_limit), "Reflection_limit:"+str(args.reflection_limit)]):
-                _, ispass = run_agent(agent, args.workload, query=problem, max_reflextions=args.reflection_limit, reset_func=None, label=solution)
+                _, ispass = run_agent(
+                    agent,
+                    args.workload,
+                    query=problem,
+                    max_reflextions=args.reflection_limit,
+                    reset_func=None,
+                    label=solution,
+                    print_log=print_log,
+                )
             end = time.time()
             latencies.append(end - start)
             print(f"Latency: {round(end - start, 2)} sec\n")
@@ -130,7 +148,15 @@ def main(args):
             print(Fore.CYAN+Style.BRIGHT+f"[Sample {i+1}/{iteration}] {query}"+Style.RESET_ALL)
             start = time.time()
             with trace("Reflexion_trace", tags=[args.workload, args.model, "Iteration_limit:"+str(args.iteration_limit), "Reflection_limit:"+str(args.reflection_limit)]):
-                score, ispass = run_agent(agent, args.workload, query=query, max_reflextions=args.reflection_limit, reset_func=reset._run, label=None)
+                score, ispass = run_agent(
+                    agent,
+                    args.workload,
+                    query=query,
+                    max_reflextions=args.reflection_limit,
+                    reset_func=reset._run,
+                    label=None,
+                    print_log=print_log,
+                )
             end = time.time()
             latencies.append(end - start)
             print(f"Latency: {round(end - start, 2)} sec\n")
@@ -156,13 +182,21 @@ def main(args):
             print(Fore.CYAN+Style.BRIGHT+f"[Sample {i+1}/{iteration}] {query}"+Style.RESET_ALL)
             agent.set_qa(query=query)
             # Generate test cases
-            print("Generating test cases...")
+            if print_log:
+                print("Generating test cases...")
             start = time.time()
             with trace("Reflexion_trace", tags=[args.workload, args.model, "Iteration_limit:"+str(args.iteration_limit), "Reflection_limit:"+str(args.reflection_limit)]):
                 exe.tests_i = gen.invoke(query)
                 finish.tests = tests
                 finish.entry_point = entry_point  
-                _, ispass = run_agent(agent=agent, workload=args.workload, query=query, max_reflextions=args.reflection_limit, label=None)
+                _, ispass = run_agent(
+                    agent=agent,
+                    workload=args.workload,
+                    query=query,
+                    max_reflextions=args.reflection_limit,
+                    label=None,
+                    print_log=print_log,
+                )
             end = time.time()
             latencies.append(end - start)
             if ispass:
@@ -173,7 +207,15 @@ def main(args):
     return
 
 @traceable()
-def run_agent(agent: ReflexionAgent, workload=None, query=None, max_reflextions=None, reset_func=None, label=""):
+def run_agent(
+    agent: ReflexionAgent,
+    workload=None,
+    query=None,
+    max_reflextions=None,
+    reset_func=None,
+    label="",
+    print_log: bool = False,
+):
     output = ""
     max_score = 0
     for i in range(max_reflextions):
@@ -182,7 +224,8 @@ def run_agent(agent: ReflexionAgent, workload=None, query=None, max_reflextions=
             if score and score > max_score:
                 max_score = score
             if not ispass:
-                print(Fore.CYAN+Style.BRIGHT+f'[Trial {i+1}/{max_reflextions}]'+Style.RESET_ALL)
+                if print_log:
+                    print(Fore.CYAN+Style.BRIGHT+f'[Trial {i+1}/{max_reflextions}]'+Style.RESET_ALL)
                 if workload == "webshop" and "Your score (min 0.0, max 1.0):" in output:
                     reset_func() # reset environment for next trial
                 output = agent.run()

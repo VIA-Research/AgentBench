@@ -1,3 +1,5 @@
+from typing import Sequence
+
 prompt1 = """Webshop 
 Instruction:  
 i would like a 3 ounce bottle of bright citrus deodorant for sensitive skin, and price lower than 50.00 dollars 
@@ -440,3 +442,54 @@ Reflection: In this attempt, I was unsuccessful. The initial search results were
 Previous trial:
 {trajectory}
 Reflection:'''
+
+
+WEBSHOP_ACTION_EXAMPLES = [
+    prompt1.replace("{input}", "").strip(),
+    prompt1_actonly.strip(),
+]
+
+
+def _render_examples(examples: Sequence[str], fewshot: int) -> str:
+    selected = list(examples[: min(max(int(fewshot), 0), len(examples))])
+    if not selected:
+        return ""
+    return "Here are few-shot action examples:\n\n" + "\n\n".join(selected).strip() + "\n\n"
+
+
+def build_webshop_prompt(fewshot: int) -> str:
+    prefix = """You are a WebShop agent.
+Follow the instruction and decide the next best action from the current page context.
+Use one action per step in one of these forms:
+- Action: search[query]
+- Action: click[target]
+- Action: think[short reasoning]
+When the correct item/options are selected, use Action: click[Buy Now].
+Do not emit XML-style reasoning tags such as <think> or </think>. If you need reasoning,
+put it inside Action: think[...].
+
+"""
+    examples_text = _render_examples(WEBSHOP_ACTION_EXAMPLES, fewshot=fewshot)
+    return prefix + examples_text + "{input}\n"
+
+
+def build_webshop_feedback_prompt(fewshot: int) -> str:
+    prefix = """You are a WebShop agent.
+Follow the instruction and decide the next best action from the current page context.
+You are also given failed trajectories; avoid repeating the same mistakes.
+Do not emit XML-style reasoning tags such as <think> or </think>. If you need reasoning,
+put it inside Action: think[...].
+
+"""
+    examples_text = _render_examples(WEBSHOP_ACTION_EXAMPLES, fewshot=fewshot)
+    return (
+        prefix
+        + examples_text
+        + "Failed trajectories:\n{trajectories}\n\n"
+        + "Use one action per step in one of these forms:\n"
+        + "- Action: search[query]\n"
+        + "- Action: click[target]\n"
+        + "- Action: think[short reasoning]\n"
+        + "When the correct item/options are selected, use Action: click[Buy Now].\n\n"
+        + "{input}\n"
+    )

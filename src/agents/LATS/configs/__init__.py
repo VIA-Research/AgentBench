@@ -1,0 +1,2 @@
+"""LATS prompt configurations."""
+

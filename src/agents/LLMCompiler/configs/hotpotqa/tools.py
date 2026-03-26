@@ -1,3 +1,4 @@
+import asyncio
 import ast
 import time
 from src.agents.LLMCompiler.tools.base import Tool
@@ -8,6 +9,7 @@ from bs4 import BeautifulSoup
 from langchain_core.tools import BaseTool
 from langchain_core.documents import Document
 from langchain_community.docstore.base import Docstore
+from langchain_community.utilities.wikipedia import WikipediaAPIWrapper
 
 def clean_str(p):
     try:
@@ -220,7 +222,8 @@ class DocstoreExplorer:
 
     def __init__(self, top_k_result = 1, char_limit=None, one_sentence=False):
         """Initialize with a docstore, and set initial document to None."""
-        self.docstore = Wikipedia()
+        self.docstore = WikipediaAPIWrapper(top_k_results=top_k_result)
+        self.docstore_old = Wikipedia()
         self.documents: dict[str, Document] = {}
         self.lookup_strs: dict[str, str] = {}
         self.lookup_indices: dict[str, int] = {}
@@ -228,38 +231,69 @@ class DocstoreExplorer:
         self.char_limit = char_limit
         self.one_sentence = one_sentence
 
+    def _normalize_document(self, result: Any) -> Document:
+        if isinstance(result, Document):
+            content = result.page_content
+            metadata = dict(getattr(result, "metadata", {}) or {})
+        else:
+            content = str(result)
+            metadata = {}
+
+        content = content.strip()
+        if self.one_sentence and content:
+            content = content.split(". ", 1)[0].strip()
+        if self.char_limit is not None:
+            content = content[: self.char_limit]
+        return Document(page_content=content, metadata=metadata)
+
+    def _store_document(self, term: str, result: Any) -> str:
+        document = self._normalize_document(result)
+        key = term.lower()
+        self.documents[key] = document
+
+        title = str(document.metadata.get("title", "")).strip().lower()
+        if title:
+            self.documents[title] = document
+
+        return self.get_summary(key)
+
     def search(self, term: str) -> str:
         """Search for a term in the docstore, and if found save."""
-        result = self.docstore.load(term)[0]
-        # import pdb
-        # pdb.set_trace()
-        if self.one_sentence:
-            result = result.split(". ")[0]
-        if self.char_limit is not None:
-            result = result[: self.char_limit]
-        if isinstance(result, Document):
-            self.documents[term.lower()] = result
-            return self.get_summary(term.lower())
-        else:
-            result = Document(page_content=result)
-            self.documents[term.lower()] = result
-            return self.get_summary(term.lower())
+        result: Any = None
+        try:
+            loaded = self.docstore.load(term)
+            if loaded:
+                result = loaded[0]
+        except Exception:
+            result = None
+
+        if result is None:
+            result = self.docstore_old.search(term)
+
+        return self._store_document(term, result)
 
     async def asearch(self, term: str) -> str:
         """Search for a term in the docstore, and if found save."""
-        result = ""
-        result = await self.docstore.asearch(term)
-        if self.one_sentence:
-            result = result.split(". ")[0]
-        if self.char_limit is not None:
-            result = result[:self.char_limit]
-        if isinstance(result, Document):
-            self.documents[term.lower()] = result
-            return self.get_summary(term.lower())
-        else:
-            result = Document(page_content=result)
-            self.documents[term.lower()] = result
-            return self.get_summary(term.lower())
+        return await asyncio.to_thread(self.search, term)
+
+    def _paragraph_matches(self, page: str, term: str) -> List[str]:
+        paragraphs = self.get_paragraphs(page)
+        needle = term.lower().strip()
+        if not needle:
+            return paragraphs
+
+        exact = [p for p in paragraphs if needle in p.lower()]
+        if exact:
+            return exact
+
+        tokens = [tok for tok in needle.split() if tok]
+        if len(tokens) > 1:
+            token_matches = [
+                p for p in paragraphs if all(tok in p.lower() for tok in tokens)
+            ]
+            if token_matches:
+                return token_matches
+        return []
 
     def lookup(self, page: str, term: str) -> str:
         """Lookup a term in document (if saved)."""
@@ -276,7 +310,8 @@ class DocstoreExplorer:
             self.lookup_indices[page] = 0
         else:
             self.lookup_indices[page] += 1
-        lookups = [p for p in self.get_paragraphs(page) if lookup_str in p.lower()]
+        lookup_str = term
+        lookups = self._paragraph_matches(page, lookup_str)
         if len(lookups) == 0:
             return "No Results"
         elif self.lookup_indices[page] >= len(lookups):
@@ -300,7 +335,7 @@ class DocstoreExplorer:
         else:
             self.lookup_indices[page] += 1
         lookup_str = term
-        lookups = [p for p in self.get_paragraphs(page) if lookup_str in p.lower()]
+        lookups = self._paragraph_matches(page, lookup_str)
         if len(lookups) == 0:
             return "No Results"
         elif self.lookup_indices[page] >= len(lookups):
@@ -312,12 +347,20 @@ class DocstoreExplorer:
     def get_summary(self, page: str) -> str:
         if page not in self.documents:
             raise ValueError("Cannot get paragraphs without a search")
-        return self.get_paragraphs(page)[0]
+        paragraphs = self.get_paragraphs(page)
+        if paragraphs:
+            return paragraphs[0]
+        return self.documents[page].page_content.strip()
 
     def get_paragraphs(self, page: str) -> List[str]:
         if page not in self.documents:
             raise ValueError("Cannot get paragraphs without a search")
-        return self.documents[page].page_content.split("\n\n")
+        content = self.documents[page].page_content
+        paragraphs = [p.strip() for p in content.split("\n\n") if p.strip()]
+        if paragraphs:
+            return paragraphs
+        stripped = content.strip()
+        return [stripped] if stripped else []
 
 docstore = DocstoreExplorer()
 
@@ -360,22 +403,69 @@ class LookupTool(BaseTool):
 search = WikipediaTool()
 lookup = LookupTool()
 
+
+def _coerce_search_text(payload: Any) -> str:
+    if isinstance(payload, dict):
+        return str(payload.get("text", "")).strip()
+    return str(payload).strip()
+
+
+def _coerce_lookup_payload(payload: Any) -> tuple[str, str]:
+    if isinstance(payload, dict):
+        page = str(payload.get("page", "")).strip()
+        keyword = str(payload.get("keyword", "")).strip()
+        return page, keyword
+    if isinstance(payload, (list, tuple)) and len(payload) >= 2:
+        return str(payload[0]).strip(), str(payload[1]).strip()
+    raise ValueError(f"Invalid lookup payload: {payload!r}")
+
+
+async def _search_tool(payload: Any) -> str:
+    text = _coerce_search_text(payload)
+    return await search._arun(text)
+
+
+async def _lookup_tool(payload: Any) -> str:
+    page, keyword = _coerce_lookup_payload(payload)
+    return await lookup._arun(page, keyword)
+
+
+def _stringify_search(args: Any) -> str:
+    payload = args[0] if args else ""
+    if isinstance(payload, dict):
+        text = payload.get("text", "")
+        return f'search({{"text": "{text}"}})'
+    return f"search({payload})"
+
+
+def _stringify_lookup(args: Any) -> str:
+    payload = args[0] if args else {}
+    if isinstance(payload, dict):
+        page = payload.get("page", "")
+        keyword = payload.get("keyword", "")
+        return f'lookup({{"page": "{page}", "keyword": "{keyword}"}})'
+    return f"lookup({payload})"
+
 tools = [
     Tool(
         name="search",
-        func=search.ainvoke,
+        func=_search_tool,
         description=(
-            "search(text: str) -> str:\n"
-            " -Search text on Wikipedia\n"
-            " - `text`: text to search for on Wikipedia, e.g., Mount Everest, cheetah, San Francisco, etc."
+            'search({"text": "entity or topic"}) -> str:\n'
+            " - Search Wikipedia for an entity or topic.\n"
+            " - Use a concise page title or entity name.\n"
+            " - Returns the loaded page summary/lead text."
         ),
-        stringify_rule=lambda args: f"search({args})",
+        stringify_rule=_stringify_search,
     ),
     Tool(
         name="lookup",
-        func=lookup.ainvoke,
+        func=_lookup_tool,
         description=(
-            "lookup(page: str, keyword: str) -> str:\n"+lookup.description+"Use the lookup tool only after you have searched for page."),
-        stringify_rule=lambda args: f"lookup({args})",
+            'lookup({"page": "searched page title", "keyword": "keyword to scan for"}) -> str:\n'
+            + lookup.description
+            + " Use the lookup tool only after you have searched for the page."
+        ),
+        stringify_rule=_stringify_lookup,
     ),
 ]

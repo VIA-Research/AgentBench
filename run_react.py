@@ -12,15 +12,11 @@ from langsmith import traceable, trace
 load_dotenv()
 
 def main(args):
+    print_log = bool(getattr(args, "print_log", False))
     if args.host:
         host_url = f"http://{args.host}:{args.port}/v1"
     else:
         host_url = None
-
-    score_sum = 0
-    pass_count = 0
-    samples = min(len(dataset), args.samples) if args.samples else len(dataset)
-    latencies = []
 
     def pretty_output(i):
         print(Fore.YELLOW+"=" * 30)
@@ -43,8 +39,13 @@ def main(args):
     # Load dataset
     from src.utils import load_dataset, get_evaluation_function
     print(f"Loading dataset for workload: {args.workload}")
-    dataset = load_dataset(args.workload)
+    dataset = load_dataset(args.workload, shuffle=getattr(args, "shuffle", False))
     evaluator = get_evaluation_function(args.workload)
+
+    score_sum = 0
+    pass_count = 0
+    samples = min(len(dataset), args.samples) if args.samples else len(dataset)
+    latencies = []
 
     system_prompt = None
     count = 0
@@ -59,7 +60,9 @@ def main(args):
         lookup = LookupTool(name="lookup")
         finish = FinishTool(name="finish")
         tools = [search, lookup, finish]
-        langgraph_agent_executor = create_react_agent(model, tools=tools)
+        langgraph_agent_executor = create_react_agent(
+            model, tools=tools, print_log=print_log
+        )
         
         for i in range(samples):
             query = dataset[i]["question"]
@@ -99,7 +102,9 @@ def main(args):
         if args.fewshot > 5:
             print(f"Max fewshot examples for {args.workload} is 5. Running with 5 fewshot examples.")
         system_prompt = get_system_prompt(fewshots=min(args.fewshot, 5))
-        langgraph_agent_executor = create_react_agent(model, tools=tools)
+        langgraph_agent_executor = create_react_agent(
+            model, tools=tools, print_log=print_log
+        )
         
         for i in range(samples):
             session_id = dataset[i]
@@ -132,10 +137,13 @@ def main(args):
         
     elif args.workload == "math":
         from src.tools.math_tools.math_tools import WolframAlphaTool, CalculatorTool, FinishTool
+        from src.tools.math_tools.math_equivalence import extract_boxed_value
         from src.agents.ReAct.prompt.math import get_system_prompt
         
         tools = [WolframAlphaTool(), CalculatorTool(), FinishTool()]
-        langgraph_agent_executor = create_react_agent(model, tools=tools)
+        langgraph_agent_executor = create_react_agent(
+            model, tools=tools, print_log=print_log
+        )
         if args.fewshot > 2:
             print(f"Max fewshot examples for {args.workload} is 2. Running with 2 fewshot examples.")
         system_prompt = get_system_prompt(min(args.fewshot, 2))
@@ -147,7 +155,9 @@ def main(args):
             start_time = time.time()
             try:
                 with trace("ReAct_trace", tags=[args.workload, args.model, "Iteration_limit:"+str(args.iteration_limit), "Index:"+str(i)]):
-                    output_dict = run_agent(args=args, agent=langgraph_agent_executor, messages=messages, label=dataset[i]['solution'], evaluator=evaluator, query=query)
+                    output_dict = run_agent(args=args, agent=langgraph_agent_executor, messages=messages,
+                                            label=extract_boxed_value(dataset[i]['solution']), 
+                                            evaluator=evaluator, query=query)
                 if output_dict["ispass"]:
                     pass_count += 1
             except GraphRecursionError:
@@ -169,7 +179,9 @@ def main(args):
         gen = GeneratorTool(name = "generate", llm=model)
         finish = FinishTool()
         tools = [exe, finish]
-        langgraph_agent_executor = create_react_agent(model, tools=tools)
+        langgraph_agent_executor = create_react_agent(
+            model, tools=tools, print_log=print_log
+        )
         if args.fewshot > 1:
             print(f"Max fewshot examples for {args.workload} is 1. Running with 1 fewshot example.")
         system_prompt = HUMANEVAL_PROMPT

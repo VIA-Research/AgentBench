@@ -1,0 +1,57 @@
+{
+  "ukpbn": {
+    "question": "session:ukpbn",
+    "label": "Your score (min 0.0, max 1.0): 1.0",
+    "answer": "",
+    "ispass": false,
+    "score": 0.0,
+    "time": 0.021797657012939453,
+    "meta": {
+      "reward": 0.0
+    }
+  },
+  "hawtd": {
+    "question": "session:hawtd",
+    "label": "Your score (min 0.0, max 1.0): 1.0",
+    "answer": "",
+    "ispass": false,
+    "score": 0.0,
+    "time": 0.00702977180480957,
+    "meta": {
+      "reward": 0.0
+    }
+  },
+  "fmhys": {
+    "question": "session:fmhys",
+    "label": "Your score (min 0.0, max 1.0): 1.0",
+    "answer": "",
+    "ispass": false,
+    "score": 0.0,
+    "time": 0.007180690765380859,
+    "meta": {
+      "reward": 0.0
+    }
+  },
+  "egdzn": {
+    "question": "session:egdzn",
+    "label": "Your score (min 0.0, max 1.0): 1.0",
+    "answer": "",
+    "ispass": false,
+    "score": 0.0,
+    "time": 0.0075321197509765625,
+    "meta": {
+      "reward": 0.0
+    }
+  },
+  "zihxb": {
+    "question": "session:zihxb",
+    "label": "Your score (min 0.0, max 1.0): 1.0",
+    "answer": "",
+    "ispass": false,
+    "score": 0.0,
+    "time": 0.006771087646484375,
+    "meta": {
+      "reward": 0.0
+    }
+  }
+}

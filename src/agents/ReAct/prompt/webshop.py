@@ -1,161 +1,35 @@
 def get_system_prompt(fewshots: int) -> str:
     webshop_instruction_react = """
-Solve a shopping task with interleaving Observation, Thought, and Action steps. Here are some guidelines:
-- You will be given a user request and some observations from a web shop environment.
-- You need to response with Thought and Action, then you wiil be given corresponding observation
-- Thought needs to reason about the user request based on the Observations in 1-2 sentences.
-- If the Observations are unclear, you must navigate the environment until relevant data is found using provided actions. You MUST NEVER say in your thought that you don't know the answer.
+Solve a shopping task with interleaving Thought and Action steps.
 
-### Tools Available:
-- **search['search text']**: Searches for 'search text' in the webshop environment.
-You can only use this tool when the observation explicitly shows a [search] button.
-- **click['button']**: Clicks a button to inspect product details, navigate pages, or interact with options.
-You are only allowed to click buttons displayed inside the [brackets].
+You will be given a shopping instruction and the current webshop observation.
+You must respond in ReAct format only:
+- exactly one `Thought:` line
+- exactly one `Action:` line
 
-### Rules to Follow:
-1. **Error Handling**: If the observation shows an Error message, refer to the last valid observation to determine the next action. If you cannot decide the next action based on the valid observation, try clicking [Back to Search] to return to the search page or [< Prev] to go to the previous page.
-2. **Step-by-Step and replan**: Carefully analyze each observation and ensure your actions align with the given information. You can replan after receiving the action results, so just plan for current state.
-3. **Numbered Plans Only**: Present your plan as a numbered list, detailing each action step by step. Do not include explanations or extra text outside the numbered list.
-4. **Navigating Pages**:
-  - After clicking Description, Features, Reviews, or Attributes, make sure to click '< Prev' to get back to the item page. 
-  - If you want to navigate another item after clicking specific item, you need to click '< Prev' first and then click the next item ID.
-  - For example,
-    Thought: ...
-    Action: search[search query]
-    Observation: 
-    [Back to Search] 
-    Page 1 (Total results: 50) 
-    [Next >] 
-    [B011S76LB0] 
-    Item description for B011S76LB0
-    [B0096E5948]
-    Item description for B0096E5948
-    
-    (Based on the search result,)
-    Thought: ...
-    Action: click[B011S76LB0]
-    Observation: 
-    [Back to Search] 
-    [< Prev] 
-    Item description for B011S76LB0
-    Price: $21.99 
-    Rating: N.A. 
-    [Description] 
-    [Features] 
-    [Reviews] 
-    [Attributes] 
-    [Buy Now] 
-    
-    (If you want to see other product's details, you need to click '< Prev' to go back to search result page!)
-    Thought: ...
-    Action: click[< Prev]
-    Observation: 
-    [Back to Search] 
-    Page 1 (Total results: 50) 
-    [Next >] 
-    [B011S76LB0] 
-    Item description for B011S76LB0
-    [B0096E5948]
-    Item description for B0096E5948
-    
-    Thought: ...
-    Action: click[B0096E5948]
-    Observation: 
-    [Back to Search] 
-    [< Prev] 
-    Item description for B0096E5948
-    Price: $21.99 
-    Rating: N.A. 
-    [Description] 
-    [Features] 
-    [Reviews] 
-    [Attributes] 
-    [Buy Now] 
-    
-    (Assuming B011S76LB0 is better item you think,)
-    Thought: ...
-    Action: click[< Prev]
-    Observation: 
-    [Back to Search] 
-    Page 1 (Total results: 50) 
-    [Next >] 
-    [B011S76LB0] 
-    Item description for B011S76LB0
-    [B0096E5948]
-    Item description for B0096E5948
-    
-    Thought: ...
-    Action: click[B011S76LB0]
-    Observation: 
-    [Back to Search] 
-    [< Prev] 
-    Item description for B011S76LB0
-    Price: $21.99 
-    Rating: N.A. 
-    [Description] 
-    [Features] 
-    [Reviews]
-    [Attributes] 
-    [Buy Now] 
-    
-    (Inspect details of the product. Also, make sure to click '< Prev',)
-    Thought: ...
-    Action: click[Description]
-    Observation: 
-    [< Prev] 
-    Item description for B011S76LB0
-    
-    Thought: ...
-    Action: click[< Prev]
-    Observation: 
-    [Back to Search] 
-    [< Prev] 
-    Item description for B011S76LB0
-    Price: $21.99 
-    Rating: N.A. 
-    [Description] 
-    [Features] 
-    [Reviews] 
-    [Attributes] 
-    [Buy Now]
+Rules:
+- Use one action at a time.
+- Do not output numbered plans, bullet lists, multiple actions, or `Observation:`.
+- Keep `Thought:` short and useful, about 1-2 sentences.
+- Never say you do not know; use tools to gather the missing information.
 
-    Thought: ...
-    Action: click[Features]
-    Observation: 
-    [< Prev] 
-    Item Features for B011S76LB0
-    
-    Thought: ...
-    Action: click[< Prev]
-    Observation: 
-    [Back to Search] 
-    [< Prev] 
-    Item description for B011S76LB0
-    Price: $21.99 
-    Rating: N.A. 
-    [Description] 
-    [Features] 
-    [Reviews] 
-    [Attributes] 
-    [Buy Now]
-    
-    (After checking the details of items, click options and 'Buy Now')
-    Thought: ...
-    Action: click[option1]
-    Observation:
-    Thought: ...
-    Action: click[option2]
-    Observation:
-    Thought: ...
-    Action: click[Buy Now]
-    Observation:
-    Success!
+Available actions:
+- `search[query]`: use this only when the observation explicitly shows `[Search]`.
+- `click[target]`: use this only for visible clickable targets that appear inside brackets, such as item ids, options, `[Next >]`, `[Back to Search]`, `[< Prev]`, `[Description]`, `[Features]`, `[Reviews]`, or `[Buy Now]`.
 
-5. **End condition**: The phrase "Your score (min 0.0, max 1.0) [the score]" will only appear after clicking "Buy Now". You must click "Buy Now" to end the task at appropriate item page.
+Navigation rules:
+- After clicking `Description`, `Features`, `Reviews`, or `Attributes`, click `[< Prev]` to return to the item page.
+- If you want to inspect a different product after opening an item page, click `[< Prev]` first to go back to the search results.
+- If the observation shows an invalid action or an error, recover using the current page. Usually `click[Back to Search]` or `click[< Prev]` is the right move.
+
+End condition:
+- The task ends only after `Action: click[Buy Now]`.
+- Do not invent `finish[...]` or any other tool.
+- The score appears only after clicking `Buy Now`.
+
+Here are some example trajectories:
 """
     examples = ["""
-Here are some example trajectories:
-                
 Instruction:
 i am looking for dairy free and apple variety pack of chips, and price lower than 30.00 dollars
 [Search]

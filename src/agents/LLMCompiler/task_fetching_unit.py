@@ -79,10 +79,22 @@ class TaskFetchingUnit:
     tasks_done: Dict[str, asyncio.Event]
     remaining_tasks: set[str]
 
-    def __init__(self):
+    def __init__(self, log_fn: Optional[Callable[[str], None]] = None):
         self.tasks = {}
         self.tasks_done = {}
         self.remaining_tasks = set()
+        self.log_fn = log_fn
+
+    def _log_task(self, task: Task) -> None:
+        if not self.log_fn:
+            return
+        message = task.get_though_action_observation(
+            include_action=True,
+            include_thought=True,
+            include_action_idx=True,
+        ).strip()
+        if message:
+            self.log_fn(message)
 
     def set_tasks(self, tasks: dict[str, Any]):
         self.tasks.update(tasks)
@@ -115,9 +127,15 @@ class TaskFetchingUnit:
             if not task.is_join:
                 observation = await task()
                 task.observation = observation
+            self._log_task(task)
             self.tasks_done[task.idx].set()
-        except:
+        except Exception as e:
             task.observation = "Wrong tool use!"
+            if self.log_fn:
+                self.log_fn(
+                    f"{task.get_though_action_observation(include_action=True, include_thought=True, include_action_idx=True).strip()}\n"
+                    f"Execution Error: {type(e).__name__}: {e}"
+                )
             self.tasks_done[task.idx].set()
 
     async def schedule(self):

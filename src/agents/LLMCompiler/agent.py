@@ -52,6 +52,7 @@ class LLMCompiler(Chain, extra="allow"):
         joinner_prompt: str,
         joinner_prompt_final: Optional[str],
         end_condition=None,
+        print_log: bool = False,
         **kwargs,
     ) -> None:
         """
@@ -80,11 +81,13 @@ class LLMCompiler(Chain, extra="allow"):
             
         """
         super().__init__(**kwargs)
+        self.print_log = bool(print_log)
 
         if not planner_example_prompt_replan:
-            print(
-                "Replan example prompt not specified, using the same prompt as the planner."
-            )
+            if self.print_log:
+                print(
+                    "Replan example prompt not specified, using the same prompt as the planner."
+                )
             planner_example_prompt_replan = planner_example_prompt
 
         self.planner = Planner(
@@ -93,6 +96,7 @@ class LLMCompiler(Chain, extra="allow"):
             example_prompt_replan=planner_example_prompt_replan,
             tools=tools,
             stop=planner_stop,
+            print_log=self.print_log,
         )
 
         self.agent = LLMCompilerAgent(agent_llm)
@@ -103,6 +107,18 @@ class LLMCompiler(Chain, extra="allow"):
         self.end_condition = end_condition
         self.max_chat_history = max_chat_history
         self.current_iter = 0
+
+    def _log_execution(self, message: str) -> None:
+        if not self.print_log or not message:
+            return
+        print(
+            Fore.CYAN
+            + Style.BRIGHT
+            + "Executed task:"
+            + Style.RESET_ALL
+            + f"\n{message}"
+        )
+        print("-" * 40)
 
     # def reset_all_stats(self):
     #     if self.planner_callback:
@@ -192,8 +208,9 @@ class LLMCompiler(Chain, extra="allow"):
         messages = [("system", joinner_prompt), ("human", input_query)]+ [("assistant", scratchpad.strip()) for scratchpad in agent_scratchpad]
         response = await self.agent.arun(messages)
         raw_answer = cast(str, response)
-        print(Fore.CYAN+Style.BRIGHT+f"Joinner response ({self.current_iter+1}/{self.max_replans}): \n"+Style.RESET_ALL, response)
-        print("-"*40)
+        if self.print_log:
+            print(Fore.CYAN+Style.BRIGHT+f"Joinner response ({self.current_iter+1}/{self.max_replans}): \n"+Style.RESET_ALL, response)
+            print("-"*40)
         end = False
         if self.end_condition:
             end, answer, reward = self.end_condition('\n'.join(agent_scratchpad))
@@ -226,7 +243,9 @@ class LLMCompiler(Chain, extra="allow"):
             is_final_iter = i == self.max_replans - 1
             self.current_iter = i
             try:
-                task_fetching_unit = TaskFetchingUnit()
+                task_fetching_unit = TaskFetchingUnit(
+                    log_fn=self._log_execution if self.print_log else None
+                )
                 if self.planner_stream:
                     task_queue = asyncio.Queue()
                     asyncio.create_task(
@@ -281,7 +300,7 @@ class LLMCompiler(Chain, extra="allow"):
             formatted_contexts = self._format_contexts(contexts[-self.max_chat_history:])
             inputs["context"] = formatted_contexts
 
-        if is_final_iter:
+        if is_final_iter and self.print_log:
             print(Fore.RED+"Reached max replan limit."+Style.RESET_ALL)
 
         return {self.output_key: answer}

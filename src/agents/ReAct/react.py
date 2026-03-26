@@ -72,12 +72,14 @@ class AgentState(TypedDict):
 def create_react_agent(
     model: LanguageModelLike,
     tools: Union[Sequence[BaseTool]],
+    print_log: bool = False,
 ) -> CompiledStateGraph:
 
     tool_dict = {}
     for tool in tools:
         tool_dict[tool.name] = tool
-    print(f"Registered tools: {list(tool_dict.keys())}")
+    if print_log:
+        print(f"Registered tools: {list(tool_dict.keys())}")
 
     def execute_tool(state: AgentState) -> AgentState:
         last_message = state["messages"][-1]
@@ -88,7 +90,8 @@ def create_react_agent(
             messages = []
             for tool in tool_calls:
                 if tool["name"] not in tool_dict:
-                    print(f"Tool {tool['name']} not found.")
+                    if print_log:
+                        print(f"Tool {tool['name']} not found.")
                     continue
                 try:
                     tool_output = tool_dict[tool["name"]].invoke(tool["argument"])
@@ -96,10 +99,12 @@ def create_react_agent(
                         tool_output, artifact = tool_output
                     else:
                         artifact = None
-                    print(f"Observation: {tool_output}")
+                    if print_log:
+                        print(f"Observation: {tool_output}")
                 except Exception as e:
                     tool_output = f"Tool Execution Error: {e}"
-                    print(tool_output)
+                    if print_log:
+                        print(tool_output)
                     messages.append(SystemMessage(content=tool_output, artifact={"done": False}))
                     return {"messages": messages}
                 if tool["name"] == "finish":
@@ -121,12 +126,14 @@ def create_react_agent(
             else:
                 response = chunk
         response.content = extract_thoughts_and_actions(response.content)
-        print(response.content)
+        if print_log:
+            print(response.content)
         return {"messages": [response]}
 
     # Define the function that determines whether to continue or not
     def should_continue(state: AgentState) -> Literal["agent", "__end__"]:
-        print(Fore.CYAN+Style.BRIGHT+f"{'-'*30}"+Style.RESET_ALL)
+        if print_log:
+            print(Fore.CYAN+Style.BRIGHT+f"{'-'*30}"+Style.RESET_ALL)
         messages = state["messages"]
         last_message = messages[-1]
         if last_message.artifact and "done" in last_message.artifact and last_message.artifact["done"]:

@@ -10,6 +10,7 @@ from colorama import Fore, Back, Style
 from run_react import main as react_main
 from run_reflexion import main as reflexion_main
 from run_llmcompiler import main as llmcompiler_main
+from run_lats import main as lats_main
 
 def load_config(config_path: str) -> Dict[str, Any]:
     """
@@ -26,15 +27,31 @@ def load_config(config_path: str) -> Dict[str, Any]:
         except yaml.YAMLError as e:
             print(f"Error: Failed to parse YAML file: {e}", file=sys.stderr)
             sys.exit(1)
-            
-            
-def main(args):
+
+
+def get_cli_overrides(argv: list[str]) -> Dict[str, Any]:
+    """Return only explicitly provided CLI overrides for agent runtime args."""
+    overrides: Dict[str, Any] = {}
+
+    # bool flag with action="store_true": presence means explicit True override.
+    if "--print-log" in argv:
+        overrides["print_log"] = True
+
+    return overrides
+
+
+def main(args, cli_overrides: Dict[str, Any] | None = None):
     config_data = load_config(args.config)
     if args.agent not in config_data["agents"]:
         print(f"Error: Section '{args.agent}' not found in '{args.config}'.", file=sys.stderr)
         sys.exit(1)
-    agent_config_dict = {**config_data["global"], 
-                         **config_data["agents"][args.agent]}
+
+    # Base config: global defaults + per-agent overrides.
+    agent_config_dict = {**config_data["global"], **config_data["agents"][args.agent]}
+    # CLI explicitly provided args override config values.
+    if cli_overrides:
+        agent_config_dict.update(cli_overrides)
+
     agent_args = argparse.Namespace(**agent_config_dict)
     print(f"--- Running {args.agent} ---")
     print(f"Config File: {args.config}")
@@ -48,6 +65,8 @@ def main(args):
             reflexion_main(agent_args)
         elif agent_args.type == "llmcompiler":
             asyncio.run(llmcompiler_main(agent_args))
+        elif agent_args.type == "lats":
+            lats_main(agent_args)
         else:
             print(f"Error: Unknown agent type '{agent_args.type}'", file=sys.stderr)
             sys.exit(1)
@@ -75,4 +94,5 @@ if __name__ == "__main__":
     )
     parser.add_argument("--print-log", help="Pring logs", action="store_true")
     args = parser.parse_args()
-    main(args)
+    cli_overrides = get_cli_overrides(sys.argv[1:])
+    main(args, cli_overrides=cli_overrides)

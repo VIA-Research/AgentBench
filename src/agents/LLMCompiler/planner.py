@@ -194,8 +194,10 @@ class Planner:
         example_prompt_replan: str,
         tools: Sequence[Union[Tool, StructuredTool]],
         stop: Optional[list[str]],
+        print_log: bool = False,
     ):
         self.llm = llm
+        self.print_log = bool(print_log)
         # different system prompt is needed when replanning
         # since they have different guidelines, and also examples provided by the user
         self.system_prompt = generate_llm_compiler_prompt(
@@ -245,8 +247,9 @@ class Planner:
                 llm_response += chunk
         response = llm_response.content
 
-        print(Fore.CYAN+Style.BRIGHT+"Planner response: \n"+Style.RESET_ALL, response)
-        print("-"*40)
+        if self.print_log:
+            print(Fore.CYAN+Style.BRIGHT+"Planner response: \n"+Style.RESET_ALL, response)
+            print("-"*40)
 
         return response
 

@@ -113,7 +113,19 @@ Observation 6: Could not find [The Prince & Me (2004 film)]. Similar: ['The Prin
 Reflection: I got stuck in a loop where I kept trying to search 'The Prince & Me (2004 film)' but the page could not be found. Instead I should have tried to search the similar results that had a similar name to see and they were made in 2004.
 """]
 
-MATH_ACTION_EXAMPLES = ["""Problem: Let \\[f(x) = \\left\\{\n\\begin{array}{cl} ax+3, &\\text{ if }x>2, \\\\\nx-5 &\\text{ if } -2 \\le x \\le 2, \\\\\n2x-b &\\text{ if } x <-2.\n\\end{array}\n\\right.\\]Find $a+b$ if the piecewise function is continuous (which means that its graph can be drawn without lifting your pencil from the paper).
+MATH_ACTION_EXAMPLES = ["""
+Problem: Find the largest value of $c$ such that $\\frac{c**2 + 6c -27}{c-3} +2c = 23$.
+Thought 1: I need to simplify the fraction \\frac{c**2 + 6c -27}{c-3}​. This can be done by factoring the numerator. 
+Action 1: WolframAlpha(Factor c**2 + 6c - 27)
+Observation 1: (c−3)(c+9)
+Thought 2: Since \\frac{(c-3)(c+9)}{c-3}​ has a common factor, it simplifies to c+9, assuming c \\neq 3. Then, I have to solve c + 9 + 2c = 23, which is to find (23 - 9)/3
+Action 2: simplecalc((23 - 9)/3)
+Observation 2: c = 4.666666666666667
+Thought 3: c= 4.666666666666667, which is 14/3, is the largest value of c such that the equation holds.
+Action 3: finish(\\frac{14}{3})
+"""
+,
+"""Problem: Let \\[f(x) = \\left\\{\n\\begin{array}{cl} ax+3, &\\text{ if }x>2, \\\\\nx-5 &\\text{ if } -2 \\le x \\le 2, \\\\\n2x-b &\\text{ if } x <-2.\n\\end{array}\n\\right.\\]Find $a+b$ if the piecewise function is continuous (which means that its graph can be drawn without lifting your pencil from the paper).
 Thought 1: The function is continuous if the cases meet at x = 2 and x = -2. I need to solve 2a + 3 = 2 - 5, which is to find (2 - 5 - 3)/2
 Action 1: simplecalc((2 - 5 - 3)/2)
 Observation 1: a = -3
@@ -121,28 +133,17 @@ Thought 2: Now I need to ensure continuity at x = -2 by solving -2 - 5 = 2(-2) -
 Action 2: simplecalc(2*(-2) + 2 + 5)
 Observation 2: 3.0
 Thought 3: Since b = 3 and a = -3, a + b = 0 
-Action 3: finish(0)"""
-,
-"""
-Problem: Find the largest value of $c$ such that $\\frac{c**2 + 6c -27}{c-3} +2c = 23$.
-Thought 1: I need to simplify the fraction \\frac{c**2 + 6c -27}{c-3}​. This can be done by factoring the numerator. 
-Action 1: search(Factor c**2 + 6c - 27)
-Observation 1: (c−3)(c+9)
-Thought 2: Since \\frac{(c-3)(c+9)}{c-3}​ has a common factor, it simplifies to c+9, assuming c \\neq 3. Then, I have to solve c + 9 + 2c = 23, which is to find (23 - 9)/3
-Action 2: simplecalc((23 - 9)/3)
-Observation 2: c = 4.666666666666667
-Thought 3: c= 4.666666666666667, which is 14/3, is the largest value of c such that the equation holds.
-Action 3: finish(\\frac{14}{3})
+Action 3: finish(0)
 """]
 
 MATH_REFLECTION_EXAMPLES = ["""
 Previous Trial:
 Problem: Given that the third term of a geometric sequence is $1053$ and the ninth term is $\\frac{13}{9}$, find the value of the seventh term.
-Thought 1: The general form of a geometric sequence is $a_n = a_1 \cdot r**{n-1}$, where $a_n$ is the nth term, $a_1$ is the first term, and $r$ is the common ratio.
-Action 1: search(Find the general form of a geometric sequence given the third term is 1053 and the ninth term is 13/9)
+Thought 1: The general form of a geometric sequence is $a_n = a_1 \\cdot r**{n-1}$, where $a_n$ is the nth term, $a_1$ is the first term, and $r$ is the common ratio.
+Action 1: WolframAlpha(Find the general form of a geometric sequence given the third term is 1053 and the ninth term is 13/9)
 Observation 1: Wolfram Alpha wasn't able to answer it
 Thought 2: To find the common ratio, I can set up two equations using the given information about the third and ninth terms.
-Action 2: search(Solve a_3 = a_1 \cdot r**2 = 1053, a_9 = a_1 \cdot r**8 = \frac{13}{9})
+Action 2: WolframAlpha(Solve a_3 = a_1 \\cdot r**2 = 1053, a_9 = a_1 \\cdot r**8 = \\frac{13}{9})
 Observation 2: Answers: (no solutions exist)
 Thought 3: Since Wolfram Alpha couldn't provide an answer, I need to manually solve for the common ratio using the given information.
 Action 3: Let the first term of the geometric sequence be $a$ and the common ratio be $r$.

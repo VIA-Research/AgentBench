@@ -98,6 +98,125 @@ def generic_generate_func_impl(
         return func_bodies
 
 
+def generate_with_accumulated_context(
+    func_sig: str,
+    model: ModelBase,
+    strategy: str,
+    prev_func_impl: Optional[List[str]],
+    accumulated_feedback: Optional[List[str]],
+    accumulated_reflection: Optional[List[str]],
+    num_comps: int,
+    temperature: float,
+    reflexion_chat_instruction: str,
+    reflexion_few_shot: str,
+    simple_chat_instruction: str,
+    reflexion_completion_instruction: str,
+    simple_completion_instruction: str,
+    code_block_instruction: str,
+    parse_code_block: Callable[[str], str],
+    add_code_block: Callable[[str], str],
+) -> Union[str, List[str]]:
+    if strategy not in ("reflexion", "simple"):
+        raise ValueError(
+            f"Invalid strategy: given `{strategy}` but expected one of `reflexion` or `simple`"
+        )
+    if strategy == "reflexion":
+        if prev_func_impl is None or accumulated_feedback is None or accumulated_reflection is None:
+            raise ValueError(
+                "Invalid arguments: `strategy=reflexion` requires prev_func_impl, "
+                "accumulated_feedback, accumulated_reflection"
+            )
+        if not (len(prev_func_impl) == len(accumulated_feedback) == len(accumulated_reflection)):
+            raise ValueError("Accumulated context lengths must match.")
+
+    if model.is_chat:
+        if strategy == "reflexion":
+            messages = [
+                Message(
+                    role="system",
+                    content=f"{reflexion_chat_instruction}\n{code_block_instruction}",
+                ),
+                Message(
+                    role="user",
+                    content=reflexion_few_shot,
+                ),
+            ]
+            for impl, feedback, reflection in zip(
+                prev_func_impl or [],
+                accumulated_feedback or [],
+                accumulated_reflection or [],
+            ):
+                messages.append(Message(role="assistant", content=add_code_block(impl)))
+                messages.append(
+                    Message(
+                        role="user",
+                        content=(
+                            f"[unit test results from previous impl]:\n{feedback}\n\n"
+                            f"[reflection on previous impl]:\n{reflection}"
+                        ),
+                    )
+                )
+            messages.append(Message(role="user", content=f"[improved impl]:\n{func_sig}"))
+            func_bodies = model.generate_chat(
+                messages=messages,
+                num_comps=num_comps,
+                temperature=temperature,
+            )
+        else:
+            messages = [
+                Message(
+                    role="system",
+                    content=f"{simple_chat_instruction}\n{code_block_instruction}",
+                ),
+                Message(role="user", content=func_sig),
+            ]
+            func_bodies = model.generate_chat(
+                messages=messages,
+                num_comps=num_comps,
+                temperature=temperature,
+            )
+    else:
+        if strategy == "reflexion":
+            context_blocks = []
+            for impl, feedback, reflection in zip(
+                prev_func_impl or [],
+                accumulated_feedback or [],
+                accumulated_reflection or [],
+            ):
+                context_blocks.append(
+                    f"[previous impl]:\n{add_code_block(impl)}\n"
+                    f"[unit test results from previous impl]:\n{feedback}\n"
+                    f"[reflection on previous impl]:\n{reflection}"
+                )
+            accumulated_context = "\n\n".join(context_blocks)
+            prompt = (
+                f"{reflexion_completion_instruction}\n{accumulated_context}\n\n"
+                f"# improved implementation\n{func_sig}\n{code_block_instruction}"
+            )
+            func_bodies = model.generate(
+                prompt,
+                num_comps=num_comps,
+                temperature=temperature,
+            )
+        else:
+            prompt = f"{simple_completion_instruction}\n{func_sig}\n{code_block_instruction}"
+            func_bodies = model.generate(
+                prompt,
+                num_comps=num_comps,
+                temperature=temperature,
+            )
+
+    if num_comps == 1:
+        assert isinstance(func_bodies, str)
+        func_body_str = parse_code_block(func_bodies)
+        print_generated_func_body(func_body_str)
+        return func_body_str
+
+    parsed = [parse_code_block(func_body) for func_body in func_bodies]
+    print_generated_func_body("\n\n".join(parsed))
+    return parsed
+
+
 def generic_generate_internal_tests(
         func_sig: str,
         model: ModelBase,

@@ -1,0 +1,2 @@
+"""HumanEval prompts for LATS."""
+

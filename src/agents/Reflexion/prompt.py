@@ -16,10 +16,10 @@ Here are some examples:
 
 # Math
 MATH_PROMPT = """Solve a problem answering task with interleaving Thought, Action, Observation steps. Thought can reason about the current situation, and Action can be three types: 
-(1) search(query), Performs a precise and difficult mathematical calculation or query using WolframAlpha. The query must be complete, mathematically precise, and written in correct syntax (e.g., LaTeX for mathematical expressions or symbolic representations). WolframAlpha will return either an exact result or related entities if the query cannot be resolved.
+(1) WolframAlpha(query), Performs a precise and difficult mathematical calculation or query using WolframAlpha. The query must be complete, mathematically precise, and written in correct syntax (e.g., LaTeX for mathematical expressions or symbolic representations). WolframAlpha will return either an exact result or related entities if the query cannot be resolved.
     Examples:
-        search(Factor x**2-3x+2)
-        search(Solve x**3+x**2-3x-1=0)
+        WolframAlpha(Factor x**2-3x+2)
+        WolframAlpha(Solve x**3+x**2-3x-1=0)
 (2) simplecalc(expression), Performs a simple mathematical calculation using Python's numexpr library. Expression should be a single line mathematical expression that solves the problem.
     Examples:
         simplecalc(37593 * 67) for "37593 times 67"
@@ -33,7 +33,8 @@ IMPORTANT:
 - Include all relevant details in the query (e.g., formulas, known values, and specific terms) to avoid ambiguity.
 - expression for simple calculator should be like "2 + 4, sqrt(2), sin(pi/2), 3*13.5", **without any variables**
 - Use LaTeX or formal mathematical notation whenever possible to improve result accuracy.
-- Always follow the format "search(<query>)" or "simplecalc(<expression>) or "finish(<answer>)" during "Action #:" step.
+- Always follow the format "WolframAlpha(<query>)" or "simplecalc(<expression>) or "finish(<answer>)" during "Action #:" step.
+- Never use "search(...)" for math; use "WolframAlpha(...)" instead.
 - Answer with "finish(<value>)" where <value> is the answer to the question.
 - Never forget to use "\\" to escape special characters properly before submitting the query to WolframAlpha. 
 - Plan your Thought and plan Action after your Thought
@@ -43,151 +44,47 @@ Here are some examples:
 (END OF EXAMPLES)"""
 
 # Webshop
-WEBSHOP_PROMPT = """Solve a shopping task with interleaving Observation, Thought, and Action steps. Here are some guidelines:
-  - You will be given a user request and some observations from a web shop environment.
-  - Thought needs to reason about the user request based on the Observations in 1-2 sentences.
-  - If the Observations are unclear, you must navigate the environment until relevant data is found using provided actions. 
-  You MUST NEVER say in your thought that you don't know the answer.
+WEBSHOP_PROMPT = """Solve a shopping task with interleaving Thought, Action, Observation steps.
+You will be given a shopping instruction and the current webshop observation.
 
-### Tools Available:
-- **search('search text')**: Searches for 'search text' in the webshop environment. You can only use this tool when the observation explicitly shows a [search] button.
-- **click('button')**: Clicks a button to inspect product details, navigate pages, or interact with options. 
-You are only allowed to click buttons displayed inside the **[brackets]**.
+At each turn, respond with exactly one Thought line and exactly one Action line.
+Use the step number provided by the user.
 
-### Rules to Follow:
-1. **Error Handling**: If the observation shows an Error message, refer to the last valid observation to determine the next action. If you cannot decide the next action based on the valid observation, try clicking [Back to Search] to return to the search page or [< Prev] to go to the previous page.
-2. **Step-by-Step and replan**: Carefully analyze each observation and ensure your actions align with the given information. You can replan after receiving the action results, so just plan for current state.
-3. **Numbered Plans Only**: Present your plan as a numbered list, detailing each action step by step. Do not include explanations or extra text outside the numbered list.
-4. **Navigating Pages**:
-  - After clicking Description, Features, Reviews, or Attributes, make sure to click '< Prev' to get back to the item page. 
-  - If you want to navigate another item after clicking specific item, you need to click '< Prev' first and then click the next item ID.
-  - For example,
-    search(search query)
-    Observation: 
-    [Back to Search] 
-    Page 1 (Total results: 50) 
-    [Next >] 
-    [B011S76LB0] 
-    Item description for B011S76LB0
-    [B0096E5948]
-    Item description for B0096E5948
-    
-    (Based on the search result,)
-    click(B011S76LB0)
-    Observation: 
-    [Back to Search] 
-    [< Prev] 
-    Item description for B011S76LB0
-    Price: $21.99 
-    Rating: N.A. 
-    [Description] 
-    [Features] 
-    [Reviews] 
-    [Attributes] 
-    [Buy Now] 
-    
-    (If you want to see other product's details, you need to click '< Prev' to go back to search result page!)
-    click(< Prev)
-    Observation: 
-    [Back to Search] 
-    Page 1 (Total results: 50) 
-    [Next >] 
-    [B011S76LB0] 
-    Item description for B011S76LB0
-    [B0096E5948]
-    Item description for B0096E5948
-    
-    click(B0096E5948)
-    Observation: 
-    [Back to Search] 
-    [< Prev] 
-    Item description for B0096E5948
-    Price: $21.99 
-    Rating: N.A. 
-    [Description] 
-    [Features] 
-    [Reviews] 
-    [Attributes] 
-    [Buy Now] 
-    
-    (Assuming B011S76LB0 is better item you think,)
-    click(< Prev)
-    Observation: 
-    [Back to Search] 
-    Page 1 (Total results: 50) 
-    [Next >] 
-    [B011S76LB0] 
-    Item description for B011S76LB0
-    [B0096E5948]
-    Item description for B0096E5948
-    
-    click(B011S76LB0)
-    Observation: 
-    [Back to Search] 
-    [< Prev] 
-    Item description for B011S76LB0
-    Price: $21.99 
-    Rating: N.A. 
-    [Description] 
-    [Features] 
-    [Reviews]
-    [Attributes] 
-    [Buy Now] 
-    
-    (Inspect details of the product. Also, make sure to click '< Prev',)
-    click(Description)
-    Observation: 
-    [< Prev] 
-    Item description for B011S76LB0
-    
-    click(< Prev)
-    Observation: 
-    [Back to Search] 
-    [< Prev] 
-    Item description for B011S76LB0
-    Price: $21.99 
-    Rating: N.A. 
-    [Description] 
-    [Features] 
-    [Reviews] 
-    [Attributes] 
-    [Buy Now]
+Required format:
+Thought <step>: <brief reasoning>
+Action <step>: <tool call>
 
-    click(Features)
-    Observation: 
-    [< Prev] 
-    Item Features for B011S76LB0
-    
-    click(< Prev)
-    Observation: 
-    [Back to Search] 
-    [< Prev] 
-    Item description for B011S76LB0
-    Price: $21.99 
-    Rating: N.A. 
-    [Description] 
-    [Features] 
-    [Reviews] 
-    [Attributes] 
-    [Buy Now]
-    
-    (After checking the details of items, click options and 'Buy Now')
-    click(option1)
-    click(option2)
-    click(Buy Now)
-    Observation:
-    Your score (min 0.0, max 1.0) 1.0
-    Success!
+Available actions:
+(1) search(query), which searches for a product query in the webshop environment.
+    You may use this only when the observation explicitly shows [Search].
+(2) click(button), which clicks a visible button, item id, option, or navigation control.
+    You may only click text that appears inside brackets in the current observation.
 
-5. **End condition**: The phrase "Your score (min 0.0, max 1.0) [the score]" will only appear after clicking "Buy Now". You must click "Buy Now" to end the task at appropriate item page.
+IMPORTANT:
+- Plan only the next move for the current state.
+- Use only ONE action at a time.
+- Do NOT output numbered plans, bullet lists, multiple actions, or Observation lines.
+- Thought should be concise, about 1-2 sentences.
+- You MUST NEVER say that you do not know the answer.
+- Do NOT use finish() for webshop. The task ends only after clicking Buy Now on the correct product page.
+
+Navigation rules:
+- After clicking Description, Features, Reviews, or Attributes, click(< Prev) to return to the item page.
+- If you want to inspect a different product after opening an item page, click(< Prev) first to return to the search results.
+- If an invalid action or error occurs, recover using the current page. Usually click(Back to Search) or click(< Prev) is the right next step.
+- Click all relevant product options before click(Buy Now).
+
+End condition:
+- The phrase "Your score (min 0.0, max 1.0): ..." appears only after click(Buy Now).
+- Do not stop early before clicking Buy Now.
 
 Here are some example trajectories:
 {examples}
 (END OF EXAMPLES)
 
-**Common reflections you should check**
-- click ALL relevant option buttons before you click Buy Now
-- When "Error: Wrong too use" happened, click available buttons on "Current Page"
+Common reflections to keep in mind:
+- click ALL relevant option buttons before click(Buy Now)
+- when "Error: Wrong tool use." happens, interact with buttons visible on the current page
 """
 
 HUMANEVAL_PROMPT = """You are an AI that only responds with Thought and Action. 

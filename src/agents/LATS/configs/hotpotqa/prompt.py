@@ -1,3 +1,6 @@
+import re
+from typing import List, Sequence, Tuple
+
 standard_prompt = '''
 Write a coherent passage of 4 short paragraphs. The end sentence of each paragraph must be: {input}
 '''
@@ -581,3 +584,91 @@ Action 3: Finish[President Richard Nixon]
 
 {input}
 '''
+
+
+def _split_examples(
+    prompt: str,
+    entry_prefix: str,
+    tail_marker: str,
+) -> Tuple[str, List[str], str]:
+    marker = "Here are some examples:"
+    if marker not in prompt:
+        return prompt, [], ""
+    prefix, rest = prompt.split(marker, 1)
+    tail_idx = rest.find(tail_marker)
+    if tail_idx == -1:
+        tail_idx = len(rest)
+    examples_block = rest[:tail_idx].strip()
+    suffix = rest[tail_idx:].lstrip()
+    if not examples_block:
+        return prefix, [], suffix
+    split_pattern = rf"\n(?={re.escape(entry_prefix)})"
+    examples = [
+        part.strip()
+        for part in re.split(split_pattern, examples_block)
+        if part.strip().startswith(entry_prefix)
+    ]
+    return prefix, examples, suffix
+
+
+def _render_prompt_with_examples(
+    prefix: str,
+    examples: Sequence[str],
+    suffix: str,
+    fewshot: int,
+) -> str:
+    selected = list(examples[: min(max(int(fewshot), 0), len(examples))])
+    if selected:
+        examples_text = "\n\n".join(selected) + "\n\n"
+        return f"{prefix}Here are some examples:\n\n{examples_text}{suffix}"
+    return f"{prefix}{suffix}"
+
+
+_COT_PREFIX, HOTPOTQA_COT_EXAMPLES, _COT_SUFFIX = _split_examples(
+    cot_prompt, entry_prefix="Question:", tail_marker="{input}"
+)
+_COT_SHORT_PREFIX, HOTPOTQA_COT_SHORT_EXAMPLES, _COT_SHORT_SUFFIX = _split_examples(
+    cot_prompt_short, entry_prefix="Question:", tail_marker="{input}"
+)
+_COT_FEEDBACK_PREFIX, HOTPOTQA_COT_FEEDBACK_EXAMPLES, _COT_FEEDBACK_SUFFIX = _split_examples(
+    cot_prompt_feedback, entry_prefix="Question:", tail_marker="You have attempted"
+)
+_REFLECTION_PREFIX, HOTPOTQA_REFLECTION_EXAMPLES, _REFLECTION_SUFFIX = _split_examples(
+    reflection_sys_msg, entry_prefix="Previous Trial:", tail_marker="Previous trial:"
+)
+
+
+def build_hotpotqa_cot_prompt(fewshot: int) -> str:
+    return _render_prompt_with_examples(
+        _COT_PREFIX,
+        HOTPOTQA_COT_EXAMPLES,
+        _COT_SUFFIX,
+        fewshot=fewshot,
+    )
+
+
+def build_hotpotqa_cot_short_prompt(fewshot: int) -> str:
+    return _render_prompt_with_examples(
+        _COT_SHORT_PREFIX,
+        HOTPOTQA_COT_SHORT_EXAMPLES,
+        _COT_SHORT_SUFFIX,
+        fewshot=fewshot,
+    )
+
+
+def build_hotpotqa_cot_feedback_prompt(fewshot: int) -> str:
+    return _render_prompt_with_examples(
+        _COT_FEEDBACK_PREFIX,
+        HOTPOTQA_COT_FEEDBACK_EXAMPLES,
+        _COT_FEEDBACK_SUFFIX,
+        fewshot=fewshot,
+    )
+
+
+def build_hotpotqa_reflection_sys_prompt(fewshot: int) -> str:
+    return _render_prompt_with_examples(
+        _REFLECTION_PREFIX,
+        HOTPOTQA_REFLECTION_EXAMPLES,
+        _REFLECTION_SUFFIX,
+        fewshot=fewshot,
+    )
